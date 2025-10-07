@@ -39,6 +39,10 @@ public class ShotgunRaycast : MonoBehaviour
     public float tracerLife = 0.35f;
     public float decalLife = 12f;
 
+    [Header("Tracers")]
+    public bool enableTracers = true;
+    public float tracerSpeed = 200f;
+
     [Header("Decal Settings")]
     [Range(0.02f, 1f)] public float decalSize = 0.18f;
     [Range(0.0005f, 0.02f)] public float decalPushOut = 0.004f;
@@ -249,13 +253,14 @@ public class ShotgunRaycast : MonoBehaviour
 
     private void SpawnTracer(Vector3 start, Vector3 end)
     {
-        if (tracerPrefab == null) return;
+        if (!enableTracers || tracerPrefab == null) return;
         GameObject go = Instantiate(tracerPrefab);
         LineRenderer lr = go.GetComponent<LineRenderer>();
         // Animate tracer to fly along the path while keeping legacy instant line as fallback
         var tracer = go.GetComponent<BulletTracer>();
         if (tracer == null) tracer = go.AddComponent<BulletTracer>();
         tracer.Initialize(start, end);
+        tracer.speed = tracerSpeed;
         if (lr != null)
         {
             lr.positionCount = 2;
