@@ -1,0 +1,18 @@
+Library/
+Temp/
+Obj/
+Logs/
+UserSettings/
+MemoryCaptures/
+Build/
+Builds/
+.vs/
+.idea/
+*.csproj
+*.sln
+
+# VCS + secrets
+.git/
+.gitignore
+.env
+ProjectSettings/
