@@ -43,7 +43,7 @@ public class ShotgunRaycast : MonoBehaviour
     public bool enableTracers = true;
     public float tracerSpeed = 200f;
     public Color tracerColor = Color.yellow;
-    [Range(0f, 0.2f)] public float tracerStartDelay = 0.05f;
+    [Range(0f, 0.3f)] public float tracerStartDelay = 0.1f;
 
     [Header("Decal Settings")]
     [Range(0.02f, 1f)] public float decalSize = 0.18f;
@@ -274,6 +274,13 @@ public class ShotgunRaycast : MonoBehaviour
             lr.endWidth = tracerWidth;
             lr.startColor = tracerColor;
             lr.endColor = tracerColor;
+            // Also tint material for shaders that ignore vertex colors
+            var mat = lr.material;
+            if (mat != null)
+            {
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tracerColor);
+                if (mat.HasProperty("_Color")) mat.SetColor("_Color", tracerColor);
+            }
         }
         Destroy(go, tracerLife);
     }

@@ -52,6 +52,8 @@ public class BulletTracer : MonoBehaviour
             new GradientAlphaKey[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) }
         );
         lr.colorGradient = g;
+        lr.startColor = color;
+        lr.endColor = color;
         originalGradient = g;
 
         // Hide until delay elapses
@@ -77,6 +79,8 @@ public class BulletTracer : MonoBehaviour
                 new GradientAlphaKey[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) }
             );
             lr.colorGradient = g;
+            lr.startColor = color;
+            lr.endColor = color;
             originalGradient = g;
         }
     }
