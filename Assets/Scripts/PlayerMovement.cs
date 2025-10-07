@@ -38,6 +38,8 @@ public class PlayerMovement : MonoBehaviour
     public float dashForce = 15f;
     public float dashDamp = 8f;
     public float dashCooldown = 1f;
+    [Tooltip("Extra dash strength fraction when correcting backward momentum in air.")]
+    [Range(0f, 1f)] public float airBackwardDashBonus = 0.25f;
 
     [Header("Grounding")]
     public Transform groundCheck;                // child at feet (auto-created)
@@ -300,7 +302,7 @@ public class PlayerMovement : MonoBehaviour
             dir.y = 0f;
             dir.Normalize();
 
-            // If airborne and moving backward relative to dash direction, cancel the backward component only.
+            bool correctingBackward = false;
             if (controller != null && !controller.isGrounded)
             {
                 Vector3 hv = horizontalVelCurrent; hv.y = 0f;
@@ -308,12 +310,13 @@ public class PlayerMovement : MonoBehaviour
                 if (along < 0f)
                 {
                     // Remove the backward component so dash can push forward normally.
-                    horizontalVelCurrent -= dir * along; // since along is negative, this adds forward
+                    horizontalVelCurrent -= dir * along; // along is negative -> adds forward
+                    correctingBackward = true;
                 }
             }
 
-            // Apply the normal dash impulse separately (decays over time as before).
-            dashVel = dir * dashForce;
+            float dashStrength = dashForce * (correctingBackward ? (1f + airBackwardDashBonus) : 1f);
+            dashVel = dir * dashStrength;
             dashCooldownTimer = dashCooldown;
         }
     }
