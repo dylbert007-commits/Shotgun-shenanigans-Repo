@@ -252,6 +252,10 @@ public class ShotgunRaycast : MonoBehaviour
         if (tracerPrefab == null) return;
         GameObject go = Instantiate(tracerPrefab);
         LineRenderer lr = go.GetComponent<LineRenderer>();
+        // Animate tracer to fly along the path while keeping legacy instant line as fallback
+        var tracer = go.GetComponent<BulletTracer>();
+        if (tracer == null) tracer = go.AddComponent<BulletTracer>();
+        tracer.Initialize(start, end);
         if (lr != null)
         {
             lr.positionCount = 2;
