@@ -12,7 +12,8 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Mouse Look")]
     public Transform camHolder;                  // Camholder or Main Camera
-    [Range(1f, 1000f)] public float mouseSensitivity = 300f;
+    [Range(0.01f, 1.0f)] public float mouseSensitivity = 0.08f; // degrees per pixel (Input System mouse)
+    [Range(30f, 360f)] public float stickLookSensitivity = 120f; // deg/sec (gamepad)
     public bool lockCursor = true;
     [Tooltip("Use the new Input System if available (fallback to old Input).")]
     public bool useNewInputSystem = true;
@@ -64,6 +65,7 @@ public class PlayerMovement : MonoBehaviour
     Vector3 dashVel;                             // horizontal impulse
     float dashCooldownTimer;
     float xRotation;
+    Vector3 horizontalVelCurrent;                // persisted horizontal velocity (for inertia)
 
     // timers/state
     float coyoteTimer;
@@ -72,6 +74,12 @@ public class PlayerMovement : MonoBehaviour
     int airJumpsUsed = 0;
     float defaultStepOffset;
     bool isRespawning = false;
+
+    [Header("Air Control")]
+    [Tooltip("Acceleration applied to reach target on ground (m/s^2).")]
+    public float groundAcceleration = 60f;
+    [Tooltip("Acceleration to reach target in air (m/s^2). Lower = less air control.")]
+    public float airAcceleration = 10f;
 
     void Awake()
     {
@@ -156,6 +164,7 @@ public class PlayerMovement : MonoBehaviour
             // Stop all active motion so Grapple (or other system) fully owns movement
             verticalVel = Vector3.zero;
             dashVel = Vector3.zero;
+            horizontalVelCurrent = Vector3.zero;
             // Clear jump buffers/timers to avoid popping right after unlock
             jumpBufferTimer = 0f;
             coyoteTimer = 0f;
@@ -170,34 +179,49 @@ public class PlayerMovement : MonoBehaviour
 
         if (useNewInputSystem)
         {
-            Vector2 look = Vector2.zero;
 #if ENABLE_INPUT_SYSTEM
-            if (lookAction && lookAction.action != null)
-            {
-                look = lookAction.action.ReadValue<Vector2>();
-            }
-            else
-            {
-                var mouse = UnityEngine.InputSystem.Mouse.current;
-                if (mouse != null)
-                    look = mouse.delta.ReadValue();
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            var gamepad = UnityEngine.InputSystem.Gamepad.current;
 
-                var gamepad = UnityEngine.InputSystem.Gamepad.current;
-                if (gamepad != null && gamepad.rightStick.ReadValue().sqrMagnitude > look.sqrMagnitude)
-                    look = gamepad.rightStick.ReadValue() * 15f;
+            // Prefer mouse if there is any delta
+            if (mouse != null)
+            {
+                Vector2 d = mouse.delta.ReadValue();
+                if (d.sqrMagnitude > 0.000001f)
+                {
+                    mx = d.x * mouseSensitivity;           // degrees per pixel
+                    my = d.y * mouseSensitivity;
+                }
+            }
+
+            // Otherwise use stick (deg/sec)
+            if (mx == 0f && my == 0f && gamepad != null)
+            {
+                Vector2 rs = gamepad.rightStick.ReadValue();
+                if (rs.sqrMagnitude > 0.000001f)
+                {
+                    mx = rs.x * stickLookSensitivity * Time.deltaTime;
+                    my = rs.y * stickLookSensitivity * Time.deltaTime;
+                }
+            }
+
+            // Fallback to action value if provided but devices gave nothing
+            if (mx == 0f && my == 0f && lookAction && lookAction.action != null)
+            {
+                Vector2 v = lookAction.action.ReadValue<Vector2>();
+                mx = v.x * stickLookSensitivity * Time.deltaTime;
+                my = v.y * stickLookSensitivity * Time.deltaTime;
             }
 #else
             {
             }
 #endif
-
-            mx = look.x * mouseSensitivity * Time.deltaTime;
-            my = look.y * mouseSensitivity * Time.deltaTime;
         }
         else
         {
-            mx = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
-            my = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+            // Legacy Input Manager mouse axes (scaled per-project) — treat as deg/sec
+            mx = Input.GetAxis("Mouse X") * stickLookSensitivity * Time.deltaTime;
+            my = Input.GetAxis("Mouse Y") * stickLookSensitivity * Time.deltaTime;
         }
 
         transform.Rotate(Vector3.up * mx);
@@ -276,7 +300,15 @@ public class PlayerMovement : MonoBehaviour
             dir.y = 0f;
             dir.Normalize();
 
-            dashVel = dir * dashForce;
+            // Apply dash as an impulse to current horizontal velocity so it overcomes backward inertia.
+            Vector3 hv = horizontalVelCurrent; hv.y = 0f;
+            float along = Vector3.Dot(hv, dir);
+            float targetAlong = Mathf.Max(0f, along) + dashForce; // ensure forward push even if moving backward
+            float deltaAlong = targetAlong - along;
+            horizontalVelCurrent += dir * deltaAlong;
+
+            // No separate dash velocity needed; cooldown starts now.
+            dashVel = Vector3.zero;
             dashCooldownTimer = dashCooldown;
         }
     }
@@ -318,7 +350,7 @@ public class PlayerMovement : MonoBehaviour
 
         Vector3 moveDir = transform.right * x + transform.forward * z;
         if (moveDir.sqrMagnitude > 1f) moveDir.Normalize();
-        Vector3 horizontalVel = moveDir * speed;
+        Vector3 horizontalTarget = moveDir * speed;
 
         // Ground probe
         postJumpTimer -= dt;
@@ -336,10 +368,16 @@ public class PlayerMovement : MonoBehaviour
             airJumpsUsed = 0;
             if (verticalVel.y < 0f && postJumpTimer <= 0f)
                 verticalVel.y = -groundStick;
+
+            // Strong acceleration on ground toward target
+            horizontalVelCurrent = Vector3.MoveTowards(horizontalVelCurrent, horizontalTarget, groundAcceleration * dt);
         }
         else
         {
             coyoteTimer -= dt;
+
+            // Preserve momentum, allow slight air steering toward target
+            horizontalVelCurrent = Vector3.MoveTowards(horizontalVelCurrent, horizontalTarget, airAcceleration * dt);
         }
 
         // Jumps (press OR buffered)
@@ -390,7 +428,7 @@ public class PlayerMovement : MonoBehaviour
             dashVel = Vector3.zero;
 
         // Single Move
-        Vector3 motion = horizontalVel + dashVel;
+        Vector3 motion = horizontalVelCurrent + dashVel;
         motion.y = verticalVel.y;
         controller.Move(motion * dt);
 
@@ -451,6 +489,7 @@ public class PlayerMovement : MonoBehaviour
         // stop motion
         verticalVel = Vector3.zero;
         dashVel = Vector3.zero;
+        horizontalVelCurrent = Vector3.zero;
 
         // Keep CC enabled; just disable collision so teleport won't snag
         controller.detectCollisions = false;
