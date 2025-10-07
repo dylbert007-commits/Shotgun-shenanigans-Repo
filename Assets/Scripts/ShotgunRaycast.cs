@@ -44,6 +44,8 @@ public class ShotgunRaycast : MonoBehaviour
     public float tracerSpeed = 200f;
     public Color tracerColor = Color.yellow;
     [Range(0f, 0.3f)] public float tracerStartDelay = 0.1f;
+    [Tooltip("If true, override tracer color to red.")]
+    public bool useRedTracers = false;
 
     [Header("Decal Settings")]
     [Range(0.02f, 1f)] public float decalSize = 0.18f;
@@ -261,7 +263,8 @@ public class ShotgunRaycast : MonoBehaviour
         // Animate tracer to fly along the path while keeping legacy instant line as fallback
         var tracer = go.GetComponent<BulletTracer>();
         if (tracer == null) tracer = go.AddComponent<BulletTracer>();
-        tracer.color = tracerColor;
+        Color finalColor = useRedTracers ? Color.red : tracerColor;
+        tracer.color = finalColor;
         tracer.startDelay = tracerStartDelay;
         tracer.Initialize(start, end);
         tracer.speed = tracerSpeed;
@@ -272,14 +275,14 @@ public class ShotgunRaycast : MonoBehaviour
             lr.SetPosition(1, end);
             lr.startWidth = tracerWidth;
             lr.endWidth = tracerWidth;
-            lr.startColor = tracerColor;
-            lr.endColor = tracerColor;
+            lr.startColor = finalColor;
+            lr.endColor = finalColor;
             // Also tint material for shaders that ignore vertex colors
             var mat = lr.material;
             if (mat != null)
             {
-                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tracerColor);
-                if (mat.HasProperty("_Color")) mat.SetColor("_Color", tracerColor);
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", finalColor);
+                if (mat.HasProperty("_Color")) mat.SetColor("_Color", finalColor);
             }
         }
         Destroy(go, tracerLife);
