@@ -300,15 +300,20 @@ public class PlayerMovement : MonoBehaviour
             dir.y = 0f;
             dir.Normalize();
 
-            // Apply dash as an impulse to current horizontal velocity so it overcomes backward inertia.
-            Vector3 hv = horizontalVelCurrent; hv.y = 0f;
-            float along = Vector3.Dot(hv, dir);
-            float targetAlong = Mathf.Max(0f, along) + dashForce; // ensure forward push even if moving backward
-            float deltaAlong = targetAlong - along;
-            horizontalVelCurrent += dir * deltaAlong;
+            // If airborne and moving backward relative to dash direction, cancel the backward component only.
+            if (controller != null && !controller.isGrounded)
+            {
+                Vector3 hv = horizontalVelCurrent; hv.y = 0f;
+                float along = Vector3.Dot(hv, dir);
+                if (along < 0f)
+                {
+                    // Remove the backward component so dash can push forward normally.
+                    horizontalVelCurrent -= dir * along; // since along is negative, this adds forward
+                }
+            }
 
-            // No separate dash velocity needed; cooldown starts now.
-            dashVel = Vector3.zero;
+            // Apply the normal dash impulse separately (decays over time as before).
+            dashVel = dir * dashForce;
             dashCooldownTimer = dashCooldown;
         }
     }
