@@ -9,6 +9,8 @@ public class BulletTracer : MonoBehaviour
     public float minSegment = 0.1f;     // minimum visible segment length
     public bool fadeOutOnFinish = true;
     public float fadeOutTime = 0.08f;
+    public Color color = Color.yellow;  // tracer color
+    public float startDelay = 0.05f;    // delay before appearing
 
     LineRenderer lr;
     Vector3 p0;
@@ -17,6 +19,7 @@ public class BulletTracer : MonoBehaviour
     bool finished;
     float fadeT;
     Gradient originalGradient;
+    float delayRemaining;
 
     void Awake()
     {
@@ -38,9 +41,22 @@ public class BulletTracer : MonoBehaviour
         }
 
         // Start as a very short segment at the origin
+        lr.positionCount = 2;
         lr.SetPosition(0, p0);
         lr.SetPosition(1, p0);
-        originalGradient = lr.colorGradient;
+
+        // Apply color gradient based on desired color
+        var g = new Gradient();
+        g.SetKeys(
+            new GradientColorKey[] { new GradientColorKey(color, 0f), new GradientColorKey(color, 1f) },
+            new GradientAlphaKey[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) }
+        );
+        lr.colorGradient = g;
+        originalGradient = g;
+
+        // Hide until delay elapses
+        delayRemaining = Mathf.Max(0f, startDelay);
+        lr.enabled = (delayRemaining <= 0f);
     }
 
     public void Initialize(Vector3 start, Vector3 end)
@@ -53,6 +69,15 @@ public class BulletTracer : MonoBehaviour
             lr.positionCount = 2;
             lr.SetPosition(0, p0);
             lr.SetPosition(1, p0);
+
+            // Apply color gradient based on desired color
+            var g = new Gradient();
+            g.SetKeys(
+                new GradientColorKey[] { new GradientColorKey(color, 0f), new GradientColorKey(color, 1f) },
+                new GradientAlphaKey[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) }
+            );
+            lr.colorGradient = g;
+            originalGradient = g;
         }
     }
 
@@ -74,6 +99,17 @@ public class BulletTracer : MonoBehaviour
                     new GradientAlphaKey[] { new GradientAlphaKey(a0, 0f), new GradientAlphaKey(a1, 1f) }
                 );
                 lr.colorGradient = g;
+            }
+            return;
+        }
+
+        // Delay appearance if requested
+        if (delayRemaining > 0f)
+        {
+            delayRemaining -= Time.deltaTime;
+            if (delayRemaining <= 0f && lr != null)
+            {
+                lr.enabled = true;
             }
             return;
         }

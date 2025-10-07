@@ -42,6 +42,8 @@ public class ShotgunRaycast : MonoBehaviour
     [Header("Tracers")]
     public bool enableTracers = true;
     public float tracerSpeed = 200f;
+    public Color tracerColor = Color.yellow;
+    [Range(0f, 0.2f)] public float tracerStartDelay = 0.05f;
 
     [Header("Decal Settings")]
     [Range(0.02f, 1f)] public float decalSize = 0.18f;
@@ -259,6 +261,8 @@ public class ShotgunRaycast : MonoBehaviour
         // Animate tracer to fly along the path while keeping legacy instant line as fallback
         var tracer = go.GetComponent<BulletTracer>();
         if (tracer == null) tracer = go.AddComponent<BulletTracer>();
+        tracer.color = tracerColor;
+        tracer.startDelay = tracerStartDelay;
         tracer.Initialize(start, end);
         tracer.speed = tracerSpeed;
         if (lr != null)
@@ -268,6 +272,8 @@ public class ShotgunRaycast : MonoBehaviour
             lr.SetPosition(1, end);
             lr.startWidth = tracerWidth;
             lr.endWidth = tracerWidth;
+            lr.startColor = tracerColor;
+            lr.endColor = tracerColor;
         }
         Destroy(go, tracerLife);
     }
