@@ -25,8 +25,8 @@ public class BulletTracer : MonoBehaviour
 
         if (lr.positionCount >= 2)
         {
-            lr.GetPosition(0, out p0);
-            lr.GetPosition(1, out p1);
+            p0 = lr.GetPosition(0);
+            p1 = lr.GetPosition(1);
         }
         else
         {
@@ -106,4 +106,3 @@ public class BulletTracer : MonoBehaviour
         }
     }
 }
-
