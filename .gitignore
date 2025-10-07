@@ -1,0 +1,65 @@
+# ========================================
+# UNITY PROJECT .GITIGNORE
+# ========================================
+
+# --- Unity build and cache folders ---
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+MemoryCaptures/
+Recordings/
+
+# --- IDE / Editor generated files ---
+.vs/
+.gradle/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# --- Crash reports / backups ---
+sysinfo.txt
+*.stacktrace
+*.crash
+*.bak
+
+# --- Unity packages / app builds ---
+*.apk
+*.aab
+*.app
+*.unitypackage
+*.unitypackage.meta
+
+# --- Addressables temporary data ---
+/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+
+# --- Misc tools ---
+/[Aa]ssets/AssetStoreTools*
+/[Ll]ibrary/PackageCache/
+.DS_Store
+Thumbs.db
+
+# --- Logs and profiles ---
+*.log
+*.orig
+
+# --- JetBrains Rider ---
+/[Aa]ssets/Plugins/Editor/JetBrains*
+.idea/
+
+# --- Visual Studio Code ---
+.vscode/
