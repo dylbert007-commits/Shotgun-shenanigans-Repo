@@ -14,6 +14,16 @@ public class PlayerMovement : MonoBehaviour
     public Transform camHolder;                  // Camholder or Main Camera
     [Range(1f, 1000f)] public float mouseSensitivity = 300f;
     public bool lockCursor = true;
+    [Tooltip("Use the new Input System if available (fallback to old Input).")]
+    public bool useNewInputSystem = true;
+#if ENABLE_INPUT_SYSTEM
+    [Header("Input Actions (optional)")]
+    public UnityEngine.InputSystem.InputActionReference moveAction;
+    public UnityEngine.InputSystem.InputActionReference lookAction;
+    public UnityEngine.InputSystem.InputActionReference jumpAction;
+    public UnityEngine.InputSystem.InputActionReference sprintAction;
+    public UnityEngine.InputSystem.InputActionReference dashAction;
+#endif
 
     [Header("Sprint")]
     public KeyCode sprintKey = KeyCode.LeftShift;
@@ -89,6 +99,31 @@ public class PlayerMovement : MonoBehaviour
         defaultStepOffset = controller.stepOffset;
     }
 
+    void OnEnable()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (useNewInputSystem)
+        {
+            try { if (moveAction && moveAction.action != null) moveAction.action.Enable(); } catch {}
+            try { if (lookAction && lookAction.action != null) lookAction.action.Enable(); } catch {}
+            try { if (jumpAction && jumpAction.action != null) jumpAction.action.Enable(); } catch {}
+            try { if (sprintAction && sprintAction.action != null) sprintAction.action.Enable(); } catch {}
+            try { if (dashAction && dashAction.action != null) dashAction.action.Enable(); } catch {}
+        }
+#endif
+    }
+
+    void OnDisable()
+    {
+#if ENABLE_INPUT_SYSTEM
+        try { if (moveAction && moveAction.action != null) moveAction.action.Disable(); } catch {}
+        try { if (lookAction && lookAction.action != null) lookAction.action.Disable(); } catch {}
+        try { if (jumpAction && jumpAction.action != null) jumpAction.action.Disable(); } catch {}
+        try { if (sprintAction && sprintAction.action != null) sprintAction.action.Disable(); } catch {}
+        try { if (dashAction && dashAction.action != null) dashAction.action.Disable(); } catch {}
+#endif
+    }
+
     void Update()
     {
         // Always allow look
@@ -131,8 +166,39 @@ public class PlayerMovement : MonoBehaviour
     // ---------- Look ----------
     void Look()
     {
-        float mx = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
-        float my = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+        float mx = 0f, my = 0f;
+
+        if (useNewInputSystem)
+        {
+            Vector2 look = Vector2.zero;
+#if ENABLE_INPUT_SYSTEM
+            if (lookAction && lookAction.action != null)
+            {
+                look = lookAction.action.ReadValue<Vector2>();
+            }
+            else
+            {
+                var mouse = UnityEngine.InputSystem.Mouse.current;
+                if (mouse != null)
+                    look = mouse.delta.ReadValue();
+
+                var gamepad = UnityEngine.InputSystem.Gamepad.current;
+                if (gamepad != null && gamepad.rightStick.ReadValue().sqrMagnitude > look.sqrMagnitude)
+                    look = gamepad.rightStick.ReadValue() * 15f;
+            }
+#else
+            {
+            }
+#endif
+
+            mx = look.x * mouseSensitivity * Time.deltaTime;
+            my = look.y * mouseSensitivity * Time.deltaTime;
+        }
+        else
+        {
+            mx = Input.GetAxis("Mouse X") * mouseSensitivity * Time.deltaTime;
+            my = Input.GetAxis("Mouse Y") * mouseSensitivity * Time.deltaTime;
+        }
 
         transform.Rotate(Vector3.up * mx);
 
@@ -147,15 +213,64 @@ public class PlayerMovement : MonoBehaviour
     // ---------- Inputs ----------
     void ReadInputs()
     {
-        if (Input.GetButtonDown("Jump")) jumpBufferTimer = jumpBuffer;
-        else jumpBufferTimer -= Time.deltaTime;
+        bool jumpPressed = false;
+
+        if (useNewInputSystem)
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (jumpAction && jumpAction.action != null)
+            {
+                if (jumpAction.action.WasPressedThisFrame()) jumpPressed = true;
+            }
+            else
+            {
+                var kb = UnityEngine.InputSystem.Keyboard.current;
+                var gp = UnityEngine.InputSystem.Gamepad.current;
+                if ((kb != null && kb.spaceKey.wasPressedThisFrame) ||
+                    (gp != null && gp.buttonSouth.wasPressedThisFrame))
+                {
+                    jumpPressed = true;
+                }
+            }
+#endif
+        }
+
+        if (!jumpPressed)
+        {
+            // Fallback to legacy input
+            jumpPressed = Input.GetButtonDown("Jump");
+        }
+
+        if (jumpPressed) jumpBufferTimer = jumpBuffer; else jumpBufferTimer -= Time.deltaTime;
 
         // Dash in movement-key direction (fallback to forward)
         dashCooldownTimer -= Time.deltaTime;
-        if (canDash && Input.GetKeyDown(dashKey) && dashCooldownTimer <= 0f)
+        bool dashPressed = false;
+        if (useNewInputSystem)
         {
-            float x = Input.GetAxisRaw("Horizontal");
-            float z = Input.GetAxisRaw("Vertical");
+#if ENABLE_INPUT_SYSTEM
+            if (dashAction && dashAction.action != null)
+            {
+                if (dashAction.action.WasPressedThisFrame()) dashPressed = true;
+            }
+            else
+            {
+                var kb = UnityEngine.InputSystem.Keyboard.current;
+                var gp = UnityEngine.InputSystem.Gamepad.current;
+                if ((kb != null && kb.leftCtrlKey.wasPressedThisFrame) ||
+                    (gp != null && gp.rightShoulder.wasPressedThisFrame))
+                {
+                    dashPressed = true;
+                }
+            }
+#endif
+        }
+        if (!dashPressed) dashPressed = Input.GetKeyDown(dashKey);
+
+        if (canDash && dashPressed && dashCooldownTimer <= 0f)
+        {
+            float x, z;
+            GetMoveAxes(out x, out z);
             Vector3 dir = transform.right * x + transform.forward * z;
             if (dir.sqrMagnitude < 0.01f) dir = transform.forward;
             dir.y = 0f;
@@ -174,9 +289,32 @@ public class PlayerMovement : MonoBehaviour
         float dt = Time.deltaTime;
 
         // Immediate horizontal
-        float x = Input.GetAxisRaw("Horizontal");
-        float z = Input.GetAxisRaw("Vertical");
-        float speed = Input.GetKey(sprintKey) ? sprintSpeed : walkSpeed;
+        float x, z;
+        GetMoveAxes(out x, out z);
+
+        bool sprintHeld = false;
+        if (useNewInputSystem)
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (sprintAction && sprintAction.action != null)
+            {
+                sprintHeld = sprintAction.action.IsPressed();
+            }
+            else
+            {
+                var kb = UnityEngine.InputSystem.Keyboard.current;
+                var gp = UnityEngine.InputSystem.Gamepad.current;
+                if ((kb != null && kb.leftShiftKey.isPressed) ||
+                    (gp != null && gp.leftStickButton.isPressed))
+                {
+                    sprintHeld = true;
+                }
+            }
+#endif
+        }
+        if (!sprintHeld) sprintHeld = Input.GetKey(sprintKey);
+
+        float speed = sprintHeld ? sprintSpeed : walkSpeed;
 
         Vector3 moveDir = transform.right * x + transform.forward * z;
         if (moveDir.sqrMagnitude > 1f) moveDir.Normalize();
@@ -205,7 +343,25 @@ public class PlayerMovement : MonoBehaviour
         }
 
         // Jumps (press OR buffered)
-        bool wantJumpNow = Input.GetButtonDown("Jump");
+        bool wantJumpNow = false;
+        if (useNewInputSystem)
+        {
+#if ENABLE_INPUT_SYSTEM
+            if (jumpAction && jumpAction.action != null)
+            {
+                wantJumpNow = jumpAction.action.WasPressedThisFrame();
+            }
+            else
+            {
+                var kb = UnityEngine.InputSystem.Keyboard.current;
+                var gp = UnityEngine.InputSystem.Gamepad.current;
+                if ((kb != null && kb.spaceKey.wasPressedThisFrame) ||
+                    (gp != null && gp.buttonSouth.wasPressedThisFrame))
+                    wantJumpNow = true;
+            }
+#endif
+        }
+        if (!wantJumpNow) wantJumpNow = Input.GetButtonDown("Jump");
         bool wantJumpBuffered = (jumpBufferTimer > 0f);
 
         if ((wantJumpNow || wantJumpBuffered) && coyoteTimer > 0f)
@@ -241,6 +397,50 @@ public class PlayerMovement : MonoBehaviour
         // Ceiling hit
         if ((controller.collisionFlags & CollisionFlags.Above) != 0 && verticalVel.y > 0f)
             verticalVel.y = 0f;
+    }
+
+    // ---------- Helpers (Input) ----------
+    void GetMoveAxes(out float x, out float z)
+    {
+        if (useNewInputSystem)
+        {
+            Vector2 v = Vector2.zero;
+#if ENABLE_INPUT_SYSTEM
+            if (moveAction && moveAction.action != null)
+            {
+                v = moveAction.action.ReadValue<Vector2>();
+            }
+            else
+            {
+                var kb = UnityEngine.InputSystem.Keyboard.current;
+                if (kb != null)
+                {
+                    if (kb.wKey.isPressed || kb.upArrowKey.isPressed) v.y += 1f;
+                    if (kb.sKey.isPressed || kb.downArrowKey.isPressed) v.y -= 1f;
+                    if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) v.x += 1f;
+                    if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) v.x -= 1f;
+                }
+
+                var gp = UnityEngine.InputSystem.Gamepad.current;
+                if (gp != null)
+                {
+                    Vector2 ls = gp.leftStick.ReadValue();
+                    if (ls.sqrMagnitude > v.sqrMagnitude) v = ls;
+                }
+            }
+#else
+            {
+            }
+#endif
+
+            v = Vector2.ClampMagnitude(v, 1f);
+            x = v.x;
+            z = v.y;
+            return;
+        }
+        // Legacy fallback
+        x = Input.GetAxisRaw("Horizontal");
+        z = Input.GetAxisRaw("Vertical");
     }
 
     // ---------- Safe respawn WITHOUT disabling the CC ----------

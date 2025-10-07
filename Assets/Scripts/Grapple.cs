@@ -80,6 +80,12 @@ public class Grapple : MonoBehaviour
     private Vector3 vVel;
     private float cachedStepOffset;
     private bool beganGrounded;
+    
+    [Header("Input System")]
+    public bool useNewInputSystem = true;
+#if ENABLE_INPUT_SYSTEM
+    public UnityEngine.InputSystem.InputActionReference grappleAction;
+#endif
 
     void Awake()
     {
@@ -101,14 +107,14 @@ public class Grapple : MonoBehaviour
         if (cooldownTimer > 0f) cooldownTimer -= Time.deltaTime;
 
         // Fire hook
-        if (state == GrappleState.Idle && cooldownTimer <= 0f && Input.GetKeyDown(grappleKey))
+        if (state == GrappleState.Idle && cooldownTimer <= 0f && GrapplePressedDown())
             FireHook();
 
         // Hook traveling
         if (state == GrappleState.HookTraveling)
         {
             // Cancel if key released
-            if (!Input.GetKey(grappleKey)) { CancelHook(); return; }
+            if (!GrappleHeld()) { CancelHook(); return; }
 
             UpdateHookTravel();
         }
@@ -117,7 +123,7 @@ public class Grapple : MonoBehaviour
         if (state == GrappleState.Latched)
         {
             // CANCEL: key released → stop enemy horizontal momentum, let them fall
-            if (!Input.GetKey(grappleKey)) { FinishGrapple(canceled: true); return; }
+            if (!GrappleHeld()) { FinishGrapple(canceled: true); return; }
 
             // Target lost?
             if (!target || target.IsDead) { FinishGrapple(canceled: false); return; }
@@ -463,5 +469,48 @@ public class Grapple : MonoBehaviour
             Gizmos.color = Color.cyan;
             Gizmos.DrawSphere(GetAnchorWorld(), 0.08f);
         }
+    }
+
+    void OnEnable()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (useNewInputSystem && grappleAction && grappleAction.action != null)
+        {
+            try { if (!grappleAction.action.enabled) grappleAction.action.Enable(); } catch {}
+        }
+#endif
+    }
+
+    void OnDisable()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (grappleAction && grappleAction.action != null)
+        {
+            try { grappleAction.action.Disable(); } catch {}
+        }
+#endif
+    }
+
+    // --------- Input Helpers ---------
+    bool GrappleHeld()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (useNewInputSystem && grappleAction && grappleAction.action != null)
+        {
+            return grappleAction.action.IsPressed();
+        }
+#endif
+        return Input.GetKey(grappleKey);
+    }
+
+    bool GrapplePressedDown()
+    {
+#if ENABLE_INPUT_SYSTEM
+        if (useNewInputSystem && grappleAction && grappleAction.action != null)
+        {
+            return grappleAction.action.WasPressedThisFrame();
+        }
+#endif
+        return Input.GetKeyDown(grappleKey);
     }
 }
